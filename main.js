@@ -16,6 +16,9 @@ import t10 from './assets/images/t10.png';
 
 const scene = document.querySelector('#scene');
 const imgUrl = [t1, t2, t3, t4, t5, t6, t7, t8, t9, t10];
+const width = window.innerWidth < 1301 ? window.innerWidth - 50 : 900;
+const height = window.innerWidth < 1301 ? window.innerHeight - 150 : 900;
+const limitY = window.innerWidth < 1301 ? 90 : 140;
 
 // preload images
 imgUrl.forEach((url) => {
@@ -27,13 +30,15 @@ const {
   Engine, Render, Composite, Bodies, Body, Runner, Events,
 } = Matter;
 const engine = Engine.create();
+Engine.update(engine, 10);
+engine.world.gravity.y = 2;
 const { world } = engine;
 const render = Render.create({
   element: scene,
   engine,
   options: {
-    width: 900,
-    height: 900,
+    width,
+    height,
     wireframes: false,
     background: 'transparent',
   },
@@ -72,7 +77,7 @@ const categoryOn = 0x0001;
 const categoryOff = 0x0002;
 
 Composite.add(world, [
-  Bodies.rectangle(-10, 450, 20, 900, {
+  Bodies.rectangle(-10, height / 2, 20, height, {
     isStatic: true,
     render: {
       fillStyle: '#000000',
@@ -83,7 +88,7 @@ Composite.add(world, [
       mask: categoryOn,
     },
   }),
-  Bodies.rectangle(910, 400, 20, 900, {
+  Bodies.rectangle(width + 10, height / 2, 20, height, {
     isStatic: true,
     render: {
       fillStyle: '#000000',
@@ -94,7 +99,7 @@ Composite.add(world, [
       mask: categoryOn,
     },
   }),
-  Bodies.rectangle(450, 910, 900, 20, {
+  Bodies.rectangle(width / 2, height + 10, height, 20, {
     isStatic: true,
     render: {
       fillStyle: '#000000',
@@ -114,10 +119,10 @@ const runner = Runner.create();
 Runner.run(runner, engine);
 
 const createBall = (level, isStatic = true, x = 0, y = null, canCollision = true) => {
-  const scale = 0.85;
+  const scale = window.innerWidth < 1301 ? 0.6 : 0.85;
   const sizes = [30, 45, 60, 80, 100, 120, 140, 160, 180, 200, 220];
   const size = sizes[level] * scale;
-  const ball = Bodies.circle(x, y ?? 140, size, {
+  const ball = Bodies.circle(x, y ?? limitY, size, {
     label: 'ball',
     restitution: 0.1,
     mass: 8,
@@ -145,13 +150,13 @@ const createBall = (level, isStatic = true, x = 0, y = null, canCollision = true
   return ball;
 };
 
-let holdBall = createBall(0, true, 512, 140, false);
+let holdBall = createBall(0, true, render.options.width / 2, limitY, false);
 
 const handleMoveEvents = (e) => {
   if (!holdBall) return;
   e.preventDefault();
-  const x = e.offsetX === undefined ? e.touches[0].offsetX : e.offsetX;
-  Body.setPosition(holdBall, { x, y: 140 });
+  const x = e.offsetX === undefined ? e.touches[0].clientX : e.offsetX;
+  Body.setPosition(holdBall, { x, y: limitY });
 };
 const handleDropEvents = (e) => {
   if (!holdBall) return;
@@ -163,7 +168,7 @@ const handleDropEvents = (e) => {
   Body.setStatic(holdBall, false);
   holdBall.updateTs = Date.now();
   holdBall = null;
-  const x = e.offsetX === undefined ? e.touches[0].offsetX : e.offsetX;
+  const x = e.offsetX === undefined ? e.changedTouches[0].clientX : e.offsetX;
   setTimeout(() => {
     if (isGameOver) return;
     const level = Math.floor(Math.random() * 5);
@@ -173,9 +178,9 @@ const handleDropEvents = (e) => {
 
 // register events
 scene.addEventListener('mousemove', handleMoveEvents, false);
-// scene.addEventListener('touchmove', handleMoveEvents);
+scene.addEventListener('touchmove', handleMoveEvents);
 scene.addEventListener('mouseup', handleDropEvents, false);
-// scene.addEventListener('touchend', handleDropEvents);
+scene.addEventListener('touchend', handleDropEvents);
 // 監聽碰撞事件
 Events.on(engine, 'collisionStart', (event) => {
   const { pairs } = event;
@@ -203,13 +208,13 @@ Events.on(engine, 'collisionStart', (event) => {
     }
   }
 });
-// 檢測所有球的包圍框是否小於y=140，是的話就結束遊戲
+// 檢測所有球的包圍框是否小於限制，是的話就結束遊戲
 Events.on(engine, 'afterUpdate', () => {
   const balls = Composite.allBodies(engine.world).filter((body) => body.label === 'ball'
     && body.collisionFilter.group === 1
     && body.collisionFilter.category === categoryOn
     && Date.now() - body.updateTs > 1000);
-  isGameOver = balls.some((ball) => ball.bounds.min.y < 140);
+  isGameOver = balls.some((ball) => ball.bounds.min.y < limitY);
   if (isGameOver) {
     Runner.stop(runner);
     gameOverModal.show();
@@ -231,6 +236,12 @@ document.querySelector('#restart').addEventListener('click', () => {
       Composite.remove(engine.world, body);
     }
   });
-  holdBall = createBall(0, true, 512, 140, false);
+  holdBall = createBall(0, true, render.options.width / 2, limitY, false);
   Runner.run(runner, engine);
 });
+
+function rwdChecker() {
+  window.location.reload();
+}
+
+window.addEventListener('resize', rwdChecker);
